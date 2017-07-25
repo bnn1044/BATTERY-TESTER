@@ -6,27 +6,33 @@
 //#define OLED_RESET 4
 Adafruit_SSD1306 display;
 
+/**************Run options***************************/
+#define DEBUG
+
+
 #define VoltageSensePin        A0
 #define CurrentSensePin        A1
-#define TempSensePin           A2
+#define VoltageReference       A2
 
-/*#define ButtonBottomleft       6
-#define ButtonBottomRight      7
-#define ButtonTopLeft          8
-#define ButtonTopRight         9*/
+/********************Button & Menu Variable*****************/
 
-Button ButtonBottomleft = Button(6,PULLUP);
-Button ButtonBottomRight = Button(7,PULLUP);
-Button ButtonTopLeft = Button(8,PULLUP);
-Button ButtonTopRight = Button(9,PULLUP);
+Button ButtonBottomLeft  = Button(6,PULLUP);     //6
+Button ButtonBottomRight = Button(7,PULLUP);    //7
 
-#define ADCreference           5
+Button ButtonTopLeft     = Button(8,PULLUP);        //8
+Button ButtonTopRight    = Button(9,PULLUP);       //9
+int MenuPage = 0;                             // 0 Mainpage   1 TestPage
+int CurrentStep = 100;                         //5A
+int VoltageChgStep = 10;                      // 0.1v
+/*Sensor variable************************/
+
 #define CurrnetSensorOffset    (1024*(0.5/5.0))  //default 0.5v
-int CutOffVoltage = 1400;       //14.00V
-int CurrentSetPoint = 4000;     //40.00A
+float CutOffVoltage = 1400;       //14.00V
+float CurrentSetPoint = 6000;     //60.00A
 float Voltage = 0.0;
 float Current = 0.0;
-int Temp    = 0;
+float RefVoltage = 0.0;
+float   Temp    = 0;
 
 void setup()   {                
   Serial.begin(9600);
@@ -39,8 +45,51 @@ void setup()   {
   StartupScreen();
 }
 void loop() {
+  UpdateScreen();
+  ChangeSetPoint();
+}
+void ChangeSetPoint(){
+  if ( MenuPage ==0 ){
+    int CurrentChangeReq = CurrentSetPoint;
+    int VoltageSetPointReq = CutOffVoltage;
+    //voltage change
+    if ( ButtonTopLeft.isPressed()){
+      VoltageSetPointReq = VoltageSetPointReq - VoltageChgStep;
+    }
+    if ( ButtonTopRight.isPressed()  ){
+      VoltageSetPointReq = VoltageSetPointReq + VoltageChgStep;
+    }
+    CutOffVoltage  = VoltageSetPointReq;
+    // current change
+    if ( ButtonBottomLeft.isPressed() ){
+      CurrentChangeReq = CurrentChangeReq - CurrentStep;
+    }
+    if ( ButtonBottomRight.isPressed() ){
+      CurrentChangeReq = CurrentChangeReq + CurrentStep;
+    }
+      CurrentSetPoint  = CurrentChangeReq;
+  }
+}
+void UpdateScreen(){
+  display.clearDisplay();
   StartupScreen();
-  delay(10);
+  display.display();
+}
+void TestScreen(){
+    MenuPage = 1;                                    // in test page;
+    displayChar(10,0,"BAT   SET",2);                //5x8*2  finish at col 16
+    displayNumber(0,16,Voltage,2);                    //Bat Voltage
+    displayChar(61,24,"V",1);                    //Bat Voltage
+    displayNumber(68,16,(CutOffVoltage/100),2);   //Set voltage
+    // display Current
+    displayNumber(0,32,Current,2);                    //Bat Voltage
+    displayChar(61,36,"A",1);                    //Bat Voltage/
+    displayNumber(68,32,(CurrentSetPoint/100),2);   //Set voltage
+    // display the temp
+    display.setCursor(0,48);
+    display.println(Temp,1);
+    displayChar(45,48,"c",2);
+    
 }
 void StartupScreen(){
 /*  -BAT---SET- *    
@@ -48,9 +97,9 @@ void StartupScreen(){
     A100.00A
     **Temp :12.00C
          START   
-*/
-    display.clearDisplay();
-    GetSensor();
+*/  
+    MenuPage = 0;                                    // in main page;
+  //  display.clearDisplay();
     displayChar(10,0,"BAT   SET",2);                //5x8*2  finish at col 16
     // display Voltage
     displayNumber(0,16,Voltage,2);                    //Bat Voltage
@@ -58,13 +107,16 @@ void StartupScreen(){
     displayNumber(68,16,(CutOffVoltage/100),2);   //Set voltage
     // display Current
     displayNumber(0,32,Current,2);                    //Bat Voltage
-    displayChar(61,36,"A",1);                    //Bat Voltage
+    displayChar(61,36,"A",1);                    //Bat Voltage/
     displayNumber(68,32,(CurrentSetPoint/100),2);   //Set voltage
     // display the temp
-    displayNumber(0,56,Temp,1);                    //Bat Voltage
-    displayChar(32,56,"C",1);
-    displayChar(65,48,"START",2);
-    display.display();
+    display.setCursor(0,48);
+    display.println(Temp,1);
+    displayChar(45,48,"c",2);
+#ifdef DEBUG
+    displayNumber(80,56,RefVoltage,1);
+#endif
+  //  display.display();
 }
 //Size 2 can diplay 4 line . each can display 10 numbers
 //
@@ -77,33 +129,28 @@ void displayChar( int x, int y,char *Char,int Size ){
 }
 void displayNumber(int x, int y, float Number,int Size){
  // String temp;
-  //temp = Number + unit;
   display.setTextSize(Size);
   display.setTextColor(WHITE);
   display.setCursor(x,y);
-  display.println( Number );
+  display.print(Number);
   //display.display();
 }
 void GetSensor(){
-  // analogRead(). It defaults to 10 bits (returns values between 0-1023)
-  
   long V = readADC(VoltageSensePin);  // get voltage
-  printDebugMsg("Voltage: ",V );
   V = map(V,0,1023,0,32000);          //0-32v
   Voltage = V/1000;
-  
   long A = readADC(CurrentSensePin);  // get current
-  printDebugMsg("Current: ",A);
   if ( A < CurrnetSensorOffset){
     A = CurrnetSensorOffset;
   }
   A = map(A,CurrnetSensorOffset,1023,0,10000);          //0-100A
   Current = A/100;
-  
-  //Serial.println(Voltage);
+  long X = readADC(VoltageReference);
+  RefVoltage = map(X,0,1023,0,4740);          //0-100A
+  printDebugMsg("Refence: ",RefVoltage/1000);
 }
 
-void printDebugMsg(String Temp, int number){
+void printDebugMsg(String Temp, uint16_t number){
   String temp1;
   temp1 = Temp + number;
   Serial.println(temp1);
@@ -112,9 +159,6 @@ void printDebugMsg(String Temp, int number){
 
 // read values
 // to average
-// to normisation
-// do statistic
-
 uint16_t readADC(int adcPin) 
 {
     uint16_t ADC;
