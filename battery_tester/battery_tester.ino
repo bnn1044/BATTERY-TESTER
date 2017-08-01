@@ -5,38 +5,43 @@
 #include <Button.h>
 #include <SoftwareSerial.h>
 #include <PID_v1.h>
-//#define OLED_RESET 4
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+ 
+// Data wire is plugged into pin 4 on the Arduino
+#define ONE_WIRE_BUS 4
+
+OneWire oneWire(ONE_WIRE_BUS);
+// Pass our oneWire reference to Dallas Temperature.
+DallasTemperature TempSensor(&oneWire);
+ 
 Adafruit_SSD1306 display;
 
 SoftwareSerial LogSerial(3, 2); // RX, TX
 
-
-//Define Variables we'll be connecting to
-double Setpoint, Input, Output;
 //Specify the links and initial tuning parameters
+double Setpoint, Input, Output;
 PID myPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
-
 /**************Run options***************************/
 //#define DEBUG
-
-
 #define VoltageSensePin        A0
 #define CurrentSensePin        A1
 #define VoltageReference       A2
-
+#define PWMoutputPin           5
 /********************Button & Menu Variable*****************/
 
-Button Select  = Button(6,PULLUP);     //6
+Button Select  = Button(6,PULLUP);    //6
 Button Start   = Button(7,PULLUP);    //7
-Button Minus   = Button(8,PULLUP);        //8
-Button Plus    = Button(9,PULLUP);       //9
+Button Minus   = Button(8,PULLUP);    //8
+Button Plus    = Button(9,PULLUP);    //9
 
 int ChangeStep = 10;                         //5A
 /*Sensor variable************************/
-
 #define CurrnetSensorOffset    (1023*(0.5/5.0))  //default 0.5v
+
 float CutOffVoltage = 1400;       //14.00V
-float CurrentSetPoint = 600;     //60.00A
+float CurrentSetPoint = 600;      //60.00A
 float TempsetPoint    =650;       //  temperature setpoint
 float Voltage = 0.0;              //voltage
 float Current = 0.0;              //current
@@ -56,12 +61,15 @@ int SettingItem = 0;   // 0 set voltage, 1 set current, 2 setTemp
 
 void setup()   {                
   Serial.begin(9600);
+ // LogSerial.begin(9600);
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C); 
   display.display();
   delay(200);
   display.clearDisplay();
   delay(500);
+  TempSensor.begin();
   GetSensor();
+  LogSerial.println("test print on the SD card");
   myPID.SetMode(AUTOMATIC);
 }
 
@@ -80,9 +88,11 @@ void doMath(){
    printDebugMsg("OUTPUTPWM: ",Output);
 }
 void loop() {
+  
   UpdateScreen();
   GetSensor();
   GetSetPoint();
+  
   if ( GetStartKey()){             //test start
       timetemp = millis();
       timeStamp = 0;
@@ -94,7 +104,7 @@ void loop() {
           GetSensor();            //read the data
           UpdateScreen();         //Update screen
           doMath();
-         // CheckBatteryStutas();
+         //CheckBatteryStutas();
       }
   }
 }
@@ -209,7 +219,6 @@ void displayChar( int x, int y,char *Char,int Size ){
   //display.display();
 }
 void displayNumber(int x, int y, float Number,int Size,int decPoint){
- // String temp;
   display.setTextSize(Size);
   display.setTextColor(WHITE);
   display.setCursor(x,y);
@@ -220,6 +229,9 @@ void GetSensor(){
   long V = readADC(VoltageSensePin);  // get voltage
   V = map(V,0,1023,0,32000);          //0-32v
   Voltage = V/1000;
+  TempSensor.requestTemperatures(); // Send the command to get temperatures
+  Temp = TempSensor.getTempCByIndex(0);      // get Temperature
+  printDebugMsg("getTemperature",Temp);
 #ifdef DEBUG
   printDebugMsg("Voltage",Voltage);
 #endif  
@@ -240,7 +252,6 @@ void printDebugMsg(String Temp, uint16_t number){
   temp1 = Temp + number;
   Serial.println(temp1);
 }
-
 // read values
 // to average
 uint16_t readADC(int adcPin) 
