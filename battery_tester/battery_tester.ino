@@ -1,20 +1,20 @@
 #include <SPI.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
+//#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Button.h>
 #include <SoftwareSerial.h>
-#include <PID_v1.h>
+//#include <PID_v1.h>
 
-#include <OneWire.h>
-#include <DallasTemperature.h>
+//#include <OneWire.h>
+//#include <DallasTemperature.h>
  
 // Data wire is plugged into pin 4 on the Arduino
-#define ONE_WIRE_BUS 4
+//#define ONE_WIRE_BUS 3
 
-OneWire oneWire(ONE_WIRE_BUS);
+//OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature.
-DallasTemperature TempSensor(&oneWire);
+//DallasTemperature TempSensor(&oneWire);
  
 Adafruit_SSD1306 display;
 
@@ -22,7 +22,7 @@ SoftwareSerial LogSerial(3, 2); // RX, TX
 
 //Specify the links and initial tuning parameters
 double Setpoint, Input, Output;
-PID myPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
+//PID myPID(&Input, &Output, &Setpoint,2,5,1, DIRECT);
 /**************Run options***************************/
 //#define DEBUG
 #define VoltageSensePin        A0
@@ -67,10 +67,10 @@ void setup()   {
   delay(200);
   display.clearDisplay();
   delay(500);
-  TempSensor.begin();
+// TempSensor.begin();
   GetSensor();
   LogSerial.println("test print on the SD card");
-  myPID.SetMode(AUTOMATIC);
+ // myPID.SetMode(AUTOMATIC);
 }
 
 void doMath(){
@@ -81,18 +81,16 @@ void doMath(){
   //compute PID
    Setpoint = CurrentSetPoint;
    Input = Current;
-   myPID.Compute();
+//   myPID.Compute();
    analogWrite( 5,Output);
    printDebugMsg("Setpoint: ",Setpoint);
    printDebugMsg("Input: ",Input);
    printDebugMsg("OUTPUTPWM: ",Output);
 }
 void loop() {
-  
   UpdateScreen();
   GetSensor();
   GetSetPoint();
-  
   if ( GetStartKey()){             //test start
       timetemp = millis();
       timeStamp = 0;
@@ -183,7 +181,7 @@ void TestScreen(){
    */
     displayNumber(0,0,Voltage,2,2);                    //Bat Voltage
     displayChar(60,8,"V",1);                         //Bat Voltage
-    displayNumber(68,0,(CutOffVoltage/100),2,2);      //Set voltage
+    displayNumber(68,0,(CutOffVoltage/100.0),2,2);      //Set voltage
     if ( SettingItem == setVoltage ){
       display.drawRect(68,0,60,16,1);
     }
@@ -191,14 +189,14 @@ void TestScreen(){
     // display Current
     displayNumber(0,16,Current,2,1);                    //Bat current
     displayChar(60,23,"A",1);                           //Bat current
-    displayNumber(72,16,(CurrentSetPoint/10),2,1);      //Set current
+    displayNumber(72,16,(CurrentSetPoint/10.0),2,1);      //Set current
     if ( SettingItem == setCurrent ){
       display.drawRect(70,15,50,17,1);
     }
     // display the temp
     displayNumber(0,33,Temp,2,1);                       //temp
     displayChar(60,40,"C",1);                           //temp
-    displayNumber(72,33,(TempsetPoint/10),2,1);         //Set set temp
+    displayNumber(72,33,(TempsetPoint/10.0),2,1);         //Set set temp
     if ( SettingItem == setTemp ){
       display.drawRect(70,31,50,17,1);
     }
@@ -216,36 +214,26 @@ void displayChar( int x, int y,char *Char,int Size ){
   display.setTextColor(WHITE);
   display.setCursor(x,y);
   display.println(Char);
-  //display.display();
 }
 void displayNumber(int x, int y, float Number,int Size,int decPoint){
   display.setTextSize(Size);
   display.setTextColor(WHITE);
   display.setCursor(x,y);
   display.println(Number,decPoint);
-  //display.display();
 }
 void GetSensor(){
-  long V = readADC(VoltageSensePin);  // get voltage
+  
+  int V = readADC(VoltageSensePin);  // get voltage
   V = map(V,0,1023,0,32000);          //0-32v
-  Voltage = V/1000;
-  TempSensor.requestTemperatures(); // Send the command to get temperatures
-  Temp = TempSensor.getTempCByIndex(0);      // get Temperature
-  printDebugMsg("getTemperature",Temp);
-#ifdef DEBUG
-  printDebugMsg("Voltage",Voltage);
-#endif  
-  long A = readADC(CurrentSensePin);  // get current
+  Voltage = V/1000.0;
+  //TempSensor.requestTemperatures(); // Send the command to get temperatures
+  //Temp = TempSensor.getTempCByIndex(0);      // get Temperature
+  int A = readADC(CurrentSensePin);  // get current
   if ( A < CurrnetSensorOffset){
     A = CurrnetSensorOffset;
   }
   A = map(A,CurrnetSensorOffset,1023,0,10000);          //0-100A
-  Current = A/100;
-  long X = readADC(VoltageReference);
-  RefVoltage = map(X,0,1023,0,4740);          //0-100A
-#ifdef DEBUG  
-  printDebugMsg("Refence: ",RefVoltage/1000);
-#endif  
+  Current = A/100.0;
 }
 void printDebugMsg(String Temp, uint16_t number){
   String temp1;
@@ -256,12 +244,13 @@ void printDebugMsg(String Temp, uint16_t number){
 // to average
 uint16_t readADC(int adcPin) 
 {
+    int sampleTime = 20;
     uint16_t ADC;
-    for (uint8_t i = 0; i < 10; i++) 
+    for (uint8_t i = 0; i < sampleTime; i++) 
     {
         ADC += analogRead(adcPin);
     }
-    ADC = ADC/10; // average  
+    ADC = ADC/sampleTime; // average  
     return (ADC);
 }
 
